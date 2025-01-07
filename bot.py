@@ -43,12 +43,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
-    user_id = update.effective_user.id
 
     if query.data == "add_wish":
-        context.user_data['wish_key'] = str(len(wishes.get(user_id, {})))
         await add_wish(update.callback_query.message, context)
         return ConversationStates.WISH
+
     elif query.data == "remove_wish":
         user_wishes = wishes.get(user_id, {})
         if user_wishes:
@@ -81,14 +80,19 @@ async def show_all_wishes(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("У тебя пока нет желаний. Используй /add_wish, чтобы добавить.")
 
 async def add_wish(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    wish_key = context.user_data.get('wish_key') # Получаем wish_key из user_data
-    context.data['wish_key'] = wish_key # Копируем в context.data
+    user_id = update.effective_user.id
+    context.user_data['user_id'] = user_id # Сохраняем user_id в user_data
 
     await update.message.reply_text("Введите название желания:")
     return ConversationStates.WISH
 
 
 async def wish_entered(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = context.user_data.get('user_id') # Получаем user_id
+    wish_text = update.message.text
+    wishes.setdefault(user_id, {}) # Создаем словарь для пользователя, если его еще нет
+    wish_key = str(len(wishes[user_id])) # Генерируем ключ здесь
+    wishes[user_id][wish_key] = wish_text # Добавляем желание
     context.data['wish'] = update.message.text
     await update.message.reply_text("👍 Желание добавлено! Теперь добавь статус:", reply_markup=ReplyKeyboardMarkup([["В процессе ⏳", "Выполнено ✅", "Отложено ⏸️"]], resize_keyboard=True, one_time_keyboard=True))
     return ConversationStates.STATUS
