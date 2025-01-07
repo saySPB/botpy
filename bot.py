@@ -2,7 +2,7 @@ import logging
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters, ConversationHandler, CallbackQueryHandler
 from enum import Enum, auto
-
+from enum import IntEnum
 # ВАШ ТОКЕН!!! ОБЯЗАТЕЛЬНО замените на ваш токен
 BOT_TOKEN = '7570956742:AAE3NLprO8RO96hfVTpnmE3UqQZRWlK3XH8'
 
@@ -13,9 +13,10 @@ logging.basicConfig(
 )
 
 # Стадии для ConversationHandler
-class ConversationStates(Enum):
-    WISH = auto()
-    STATUS = auto()
+class ConversationStates(IntEnum):
+    CHOOSING = 0
+    WISH = 1
+    STATUS = 2
     IMAGE = auto()
     TIME_END = auto()
 
@@ -45,8 +46,9 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     user_id = update.effective_user.id
 
     if query.data == "add_wish":
-        context.data['wish_key'] = str(len(wishes.get(user_id, {})))
+        context.user_data['wish_key'] = str(len(wishes.get(user_id, {})))
         await add_wish(update.callback_query.message, context)
+        return ConversationStates.WISH
     elif query.data == "remove_wish":
         user_wishes = wishes.get(user_id, {})
         if user_wishes:
@@ -79,7 +81,10 @@ async def show_all_wishes(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("У тебя пока нет желаний. Используй /add_wish, чтобы добавить.")
 
 async def add_wish(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.reply_text("💫 Напиши свое желание:")
+    wish_key = context.user_data.get('wish_key') # Получаем wish_key из user_data
+    context.data['wish_key'] = wish_key # Копируем в context.data
+
+    await update.message.reply_text("Введите название желания:")
     return ConversationStates.WISH
 
 
@@ -125,18 +130,17 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 def main():
     application = ApplicationBuilder().token(BOT_TOKEN).build()
 
-    conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('add_wish', add_wish)],
-        states={
-            ConversationStates.WISH: [MessageHandler(filters.TEXT & ~filters.COMMAND, wish_entered)],
-            ConversationStates.STATUS: [MessageHandler(filters.TEXT, status_entered)],
-            ConversationStates.IMAGE: [MessageHandler(filters.PHOTO | filters.TEXT | filters.Document.ALL, image_entered)], # <-- Правильный вариант
-            ConversationStates.TIME_END: [MessageHandler(filters.TEXT, time_end_entered)],
-        },
-        fallbacks=[CommandHandler('cancel', cancel)],
-    )
+    conversation_handler = ConversationHandler(
+    entry_points=[CommandHandler("start", start)],
+    states={
+        ConversationStates.CHOOSING: [CallbackQueryHandler(button_callback)],
+        ConversationStates.WISH: [MessageHandler(filters.TEXT & ~filters.COMMAND, wish_entered)],
+        ConversationStates.STATUS: [MessageHandler(filters.TEXT & ~filters.COMMAND, status_entered)] # И другие состояния
+    },
+    fallbacks=[CommandHandler("cancel", cancel)],
+)
 
-    application.add_handler(conv_handler)
+    application.add_handler(conversation_handler)
     application.add_handler(CommandHandler('start', start))
     application.add_handler(CallbackQueryHandler(button_callback))
 
