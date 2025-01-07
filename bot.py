@@ -117,10 +117,10 @@ conversation_handler = ConversationHandler(
             CallbackQueryHandler(button_callback, pattern="^add_wish$"),
             CallbackQueryHandler(remove_wish_handler, pattern="^remove_wish$"),
             CallbackQueryHandler(show_all_wishes, pattern="^all_wishes$"),
-            CallbackQueryHandler(delete_wish, pattern="^delete:")
+            CallbackQueryHandler(delete_wish, pattern="^delete:") # Обработчик для непосредственного удаления
         ],
         ConversationStates.WISH: [MessageHandler(filters.TEXT & ~filters.COMMAND, wish_entered)],
-        ConversationStates.REMOVING_WISH: [CallbackQueryHandler(delete_wish, pattern="^delete:")] # Обработчик для удаления
+        ConversationStates.REMOVING_WISH: [CallbackQueryHandler(delete_wish, pattern="^delete:")] # !!! Добавлено состояние REMOVING_WISH
     },
     fallbacks=[CommandHandler("cancel", cancel)],
 )
