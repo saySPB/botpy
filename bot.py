@@ -29,19 +29,22 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationStates.CHOOSING
 
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    query = update.callback_query
-    await query.answer()
-    user_id = update.effective_user.id
-    context.user_data['user_id'] = user_id
+       query = update.callback_query
+       await query.answer()
+       user_id = update.effective_user.id
+       context.user_data['user_id'] = user_id
 
-    if query.data == "add_wish":
-        await add_wish(update, context)
-        return ConversationStates.WISH
-    elif query.data == "remove_wish":
-        return ConversationStates.REMOVING_WISH # Переход в состояние удаления
-    elif query.data == "all_wishes":
-        await show_all_wishes(update.callback_query.message, context)
-        return ConversationStates.CHOOSING # Возвращаемся в состояние выбора после просмотра
+       actions = {
+           "add_wish": add_wish,
+           "remove_wish": remove_wish_handler,
+           "all_wishes": show_all_wishes
+       }
+
+       action = actions.get(query.data)
+       if action:
+           next_state = await action(update, context) # Вызываем соответствующую функцию
+           return next_state if isinstance(next_state, int) else ConversationStates.CHOOSING # Проверяем возвращаемое значение
+       return ConversationStates.CHOOSING # Если data не распознана
         
 async def add_wish(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = context.user_data.get('user_id')
@@ -99,7 +102,7 @@ async def delete_wish(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         await query.edit_message_text("Желание не найдено.")
 
     return ConversationStates.CHOOSING
-
+    
 async def show_all_wishes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user_wishes = wishes.get(user_id, {})
@@ -108,7 +111,8 @@ async def show_all_wishes(update: Update, context: ContextTypes.DEFAULT_TYPE):
         for i, wish_key in enumerate(user_wishes):
             message += f"{i+1}. {user_wishes[wish_key]}\n" # Упрощено отображение
         await update.message.reply_text(message)
-
+    if not user_wishes:
+           await update.message.reply_text("У тебя пока нет желаний. Используй кнопку \"➕ Добавить желание\", чтобы добавить.")
     else:
         await update.message.reply_text("У тебя пока нет желаний. Используй /add_wish, чтобы добавить.")
 
