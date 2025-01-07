@@ -1,6 +1,5 @@
 import logging
-from telegram import ReplyKeyboardRemove
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters, ConversationHandler, CallbackQueryHandler
 from enum import IntEnum
 
@@ -71,28 +70,31 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 async def remove_wish_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    user_id = context.user_data.get('user_id')
+    user_id = update.effective_user.id # Исправлено: получаем user_id из update
     user_wishes = wishes.get(user_id, {})
 
     if user_wishes:
         keyboard = []
-        for wish_key in user_wishes:
-            keyboard.append([InlineKeyboardButton(f"❌ {user_wishes[wish_key]}", callback_data=f"delete:{wish_key}")])
+        for wish_key, wish_text in user_wishes.items(): # Изменено: итерируемся по парам ключ-значение
+            keyboard.append([InlineKeyboardButton(f"❌ {wish_text}", callback_data=f"delete:{wish_key}")])
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text("Выбери желание для удаления:", reply_markup=reply_markup)
+        return ConversationStates.REMOVING_WISH # !!! ВАЖНО: Возвращаем состояние REMOVING_WISH
     else:
         await query.answer("У тебя нет желаний для удаления")
-    return ConversationStates.CHOOSING
+        return ConversationStates.CHOOSING # Возвращаем в состояние выбора, если желаний нет
 
 async def delete_wish(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
-    user_id = context.user_data.get('user_id')
-    wish_key = query.data.split(":")[1]
+    user_id = update.effective_user.id # Исправлено: получаем user_id из update
+    data = query.data # Получаем callback_data
+    wish_key = data.split(":")[1] if ":" in data else None # Извлекаем wish_key, проверяем на наличие ":"
 
-    if user_id in wishes and wish_key in wishes[user_id]:
+    if wish_key and user_id in wishes and wish_key in wishes[user_id]:
         del wishes[user_id][wish_key]
         await query.edit_message_text("Желание удалено!")
+
     else:
         await query.edit_message_text("Желание не найдено.")
 
