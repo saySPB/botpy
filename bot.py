@@ -33,7 +33,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             wish_data = user_wishes[wish_key]
             message += f"{i+1}. {wish_data.get('wish', 'Желание')} ({wish_data.get('status','')})\n"
 
-    keyboard = [[InlineKeyboardButton("➕ Добавить желание", callback_data="add_wish"),
+    keyboard = [[InlineKeyboardButton("➕ Добавить желание", callback_data=f"add_wish:{len(wishes.get(user_id, {}))}"),
                      InlineKeyboardButton("➖ Удалить желание", callback_data="remove_wish")],
                 [InlineKeyboardButton("📝 Все желания", callback_data="all_wishes")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -130,7 +130,7 @@ def main():
         states={
             ConversationStates.WISH: [MessageHandler(filters.TEXT & ~filters.COMMAND, wish_entered)],
             ConversationStates.STATUS: [MessageHandler(filters.TEXT, status_entered)],
-            ConversationStates.IMAGE: [MessageHandler(filters.PHOTO | filters.TEXT | filters.Document, image_entered)], # <-- Правильный вариант
+            ConversationStates.IMAGE: [MessageHandler(filters.PHOTO | filters.TEXT | filters.Document.ALL, image_entered)], # <-- Правильный вариант
             ConversationStates.TIME_END: [MessageHandler(filters.TEXT, time_end_entered)],
         },
         fallbacks=[CommandHandler('cancel', cancel)],
