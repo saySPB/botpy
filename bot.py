@@ -36,7 +36,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     context.user_data['user_id'] = user_id
 
     if query.data == "add_wish":
-        await add_wish(update.callback_query.message, context)
+        await add_wish(update, context)
         return ConversationStates.WISH
     elif query.data == "remove_wish":
         return ConversationStates.REMOVING_WISH # Переход в состояние удаления
@@ -46,7 +46,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         
 async def add_wish(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = context.user_data.get('user_id')
-    await update.message.reply_text("Введите название желания:")
+    await update.callback_query.message.reply_text("Введите название желания:")
     return ConversationStates.WISH
 
 async def wish_entered(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
