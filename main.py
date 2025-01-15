@@ -101,23 +101,22 @@ def handle_message(message):
         print(f"Ошибка: {e}")
         bot.send_message(message.chat.id, "Произошла ошибка. Попробуйте позже.")
 
+@bot.message_handler(commands=['add_wish'])
 def add_wish(message):
-    user_id = message.from_user.id
-    user_data.setdefault(user_id, {})['waiting_for_wish'] = True
-    bot.send_message(message.chat.id, "Напишите ваше желание:", reply_markup=types.ReplyKeyboardRemove())
+    user_id = message.chat.id # Используйте chat.id для user_id
+    user_data[user_id]['waiting_for_wish'] = True
+    bot.send_message(message.chat.id, "Напишите ваше желание:")
+    # Удаляем register_next_step_handler
 
-@bot.message_handler(func=lambda message: user_data.get(message.from_user.id, {}).get('waiting_for_wish', False)) # Безопасная проверка флага
+@bot.message_handler(func=lambda message: user_data.get(message.chat.id, {}).get('waiting_for_wish', False))
 def handle_wish_text(message):
-    try:
-        user_id = message.from_user.id
-        wish_text = message.text
-        user_data.setdefault(user_id, {}).setdefault('wishes', []).append(wish_text)
-        save_user_data(user_data)
-        bot.send_message(message.chat.id, f"Ваше желание '{wish_text}' добавлено в 'Желания в процессе'!", reply_markup=create_main_keyboard())
-        user_data[user_id]['waiting_for_wish'] = False
-    except Exception as e:
-        print(f"Ошибка: {e}")
-        bot.send_message(message.chat.id, "Произошла ошибка при добавлении желания. Попробуйте еще раз.")
+    user_id = message.chat.id
+    wish_text = message.text
+
+    user_data.setdefault(user_id, {}).setdefault('wishes_in_progress', []).append(wish_text)
+    user_data[user_id]['waiting_for_wish'] = False
+    save_user_data(user_data) # Передаем user_data в функцию
+    bot.send_message(message.chat.id, f"Ваше желание '{wish_text}' добавлено в 'Желания в процессе'!")
 
 def show_wishes_in_progress(message):
     try:
