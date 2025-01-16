@@ -44,29 +44,83 @@ def create_wishes_keyboard():
     return markup
 
 
-def create_priority_keyboard(wish_text):
-   markup = types.InlineKeyboardMarkup(row_width=3)
-   markup.add(
-       types.InlineKeyboardButton("⬆️", callback_data=f"up:{wish_text}"),
-       types.InlineKeyboardButton("⬇️", callback_data=f"down:{wish_text}"),
-       types.InlineKeyboardButton("✏️", callback_data=f"edit:{wish_text}"), # Добавлена кнопка "Редактировать"
-       types.InlineKeyboardButton("❌", callback_data=f"delete:{wish_text}"),
-       types.InlineKeyboardButton("Назад", callback_data="back_to_wishes")
+def create_priority_keyboard(wish_text, in_process=False):
+    keyboard = telebot.types.InlineKeyboardMarkup()
+    prefix = "in_process_" if in_process else ""
 
-   )
-   return markup
+    delete_button = telebot.types.InlineKeyboardButton('❌', callback_data=f'{prefix}delete:{wish_text}')
+    complete_button = telebot.types.InlineKeyboardButton('✅', callback_data=f'{prefix}complete:{wish_text}') # Новая кнопка
 
+    keyboard.row(delete_button, complete_button) # Добавили кнопку на клавиатуру
+
+    return keyboard
+
+def complete_wish(call, wish_text, in_process):
+    user_id = call.from_user.id
+    try:
+        if in_process:
+            source_list = user_data[user_id]['wishes_in_process']
+            target_list = user_data[user_id].get('completed_wishes', []) # Если нет, создаем
+            user_data[user_id]['completed_wishes'] = target_list
+        else:
+            source_list = user_data[user_id]['wishes']
+            target_list = user_data[user_id].get('completed_wishes', [])
+            user_data[user_id]['completed_wishes'] = target_list
+
+        source_list.remove(wish_text)
+        target_list.append(wish_text)
+
+
+        bot.answer_callback_query(call.id, "Желание выполнено!")
+
+        
+
+        # Покажем выполненные желания (опционально)
+        show_completed_wishes(call.message)
+
+
+
+    except ValueError:
+        bot.answer_callback_query(call.id, "Желание не найдено")
+
+
+def show_completed_wishes(message): # Новая функция для отображения выполненных желаний
+    user_id = message.from_user.id
+    completed_wishes = user_data.get(user_id, {}).get('completed_wishes', [])
+
+    if completed_wishes:
+        bot.send_message(message.chat.id, "Выполненные желания:")
+        for i, wish in enumerate(completed_wishes):
+            bot.send_message(message.chat.id, f"{i+1}. {wish}")
+    else:
+        bot.send_message(message.chat.id, "Все желания выполнены!!!")
 
 
 # --- Обработчики ---
 
 @bot.message_handler(commands=['start'])
 def start(message):
+    welcome_text = """
+Что умеет WishBoardBot?
+
+Наш бот сделает процесс создания карты желаний простым и увлекательным:
+
+* Создание категорий: Раздели свои желания на разные сферы жизни (например, карьера, отношения, здоровье, путешествия) 🗂️
+* Добавление желаний: Добавляй свои желания с помощью текста, изображений или голосовых сообщений 📝🖼️🎤
+* Визуализация: Бот поможет тебе красиво оформить твою карту желаний 🤩
+* Напоминания: Настраивай напоминания, чтобы не забывать о своих целях 🔔
+* Отслеживание прогресса: Следи за тем, как твои желания становятся реальностью ✅"""
+    markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
+    item1 = telebot.types.KeyboardButton("Действие 1")
+    item2 = telebot.types.KeyboardButton("Действие 2")
+    markup.add(item1, item2)
+
+    bot.send_message(message.chat.id, welcome_text, reply_markup=markup)
     user_id = message.from_user.id
     user_data.setdefault(user_id, {}) # Инициализируем данные пользователя
     user_data[user_id].setdefault('wishes', []) # Создаем список желаний если его нет
 
-    bot.send_message(message.chat.id, "Добро пожаловать в бот желаний!", reply_markup=create_main_keyboard())
+    bot.send_message(message.chat.id,  "Добро пожаловать в бот желаний!", reply_markup=create_main_keyboard())
 def show_wishes_in_progress(message):
     user_id = message.from_user.id
     user_data.setdefault(user_id, {}).setdefault('wishes', [])
@@ -80,24 +134,6 @@ def show_wishes_in_progress(message):
         priority_text = f"{priority}. {wish}"
         bot.send_message(message.chat.id, priority_text, reply_markup=create_priority_keyboard(wish)) # передаем текст желания
 
-
-def show_completed_wishes(message):
-    try:
-        user_id = message.from_user.id
-        completed_wishes = user_data.get(user_id, {}).get('completed_wishes', []) # Получаем выполненные желания
-
-        if not completed_wishes:
-            bot.send_message(message.chat.id, "У вас пока нет выполненных желаний.", reply_markup=create_wishes_keyboard()) # Убедитесь, что create_wishes_keyboard существует
-            return
-
-        response = "Ваши выполненные желания:\n"
-        for i, wish in enumerate(completed_wishes):
-            response += f"{i+1}. {wish}\n"
-
-        bot.send_message(message.chat.id, response, reply_markup=create_wishes_keyboard()) # Убедитесь, что create_wishes_keyboard существует
-    except Exception as e:
-        print(f"Ошибка: {e}")
-        bot.send_message(message.chat.id, "Произошла ошибка при отображении выполненных желаний. Попробуйте еще раз.")
 
 @bot.message_handler(content_types=['text'])
 def handle_message(message):
@@ -128,7 +164,6 @@ def process_wish_step(message):
         return # Прерываем функцию, если желание пустое
     user_id = message.from_user.id
     user_data.setdefault(user_id, {'wishes': []})['wishes'].append(wish_text) # Добавляем проверку на существование ключа 'wishes'
-    save_user_data(user_data)
     bot.send_message(message.chat.id, f"Ваше желание '{wish_text}' добавлено!", reply_markup=create_main_keyboard())
 
 @bot.message_handler(func=lambda message: message.text == "Показать желания")
@@ -146,23 +181,16 @@ def show_wishes(message):
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_inline(call):
-    user_id = call.from_user.id
-    data = call.data.split(":")
+    data = call.data.split(':')
     action = data[0]
-    wish_text = data[1] if len(data) > 1 else None
+    wish_text = ':'.join(data[1:]) # Объединяем текст желания обратно, если он содержит ':'
 
-    if action == "up":
-        move_wish(call, wish_text, "up")
-    elif action == "down":
-        move_wish(call, wish_text, "down")
-    elif action == "edit":
-        edit_wish(call, wish_text)
-    elif action == "delete":
-        delete_wish(call, wish_text)
-    elif action == "back_to_wishes":
-        bot.send_message(call.message.chat.id, "Вернулись к списку желаний.", reply_markup=create_main_keyboard())
-        # Здесь можно добавить вызов show_wishes(call.message) если нужно отобразить список сразу
+    in_process = action.startswith("in_process_")
+    if in_process:
+        action = action[11:] # Удаляем префикс "in_process_"
 
+    elif action == "complete": # Обработчик новой кнопки
+        complete_wish(call, wish_text, in_process)
 
 
 def move_wish(call, wish_text, direction):
